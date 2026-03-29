@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Gastos Familiares</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --bg-color: #F3F4F6;
+            --card-bg: #FFFFFF;
+            --text-main: #1F2937;
+            --text-muted: #6B7280;
+        }
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { margin-bottom: 5px; }
+        p.subtitle { color: var(--text-muted); margin-bottom: 30px; text-align: center;}
+        
+        .upload-container {
+            background-color: var(--card-bg);
+            border: 2px dashed #D1D5DB;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        .upload-container:hover { border-color: var(--primary); }
+        
+        #dashboard-content {
+            display: none;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .card:hover { transform: translateY(-3px); border-color: var(--primary); }
+        .card.active { border-color: var(--primary); background-color: #EEF2FF; }
+        .card h3 { margin: 0 0 10px 0; font-size: 16px; color: var(--text-muted); }
+        .card p { margin: 0; font-size: 24px; font-weight: bold; color: var(--primary); }
+        .click-hint { font-size: 12px; color: #9CA3AF; margin-top: 10px; display: block; }
+
+        .details-section {
+            display: none;
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            animation: fadeIn 0.4s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .details-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .details-header h2 { margin: 0; color: var(--primary); }
+        
+        button.btn {
+            background-color: var(--primary);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        button.btn:hover { background-color: var(--primary-hover); }
+        button.btn-pdf { background-color: #EF4444; }
+        button.btn-pdf:hover { background-color: #DC2626; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #E5E7EB; }
+        th { color: var(--text-muted); font-size: 14px; background-color: #F9FAFB; }
+        tr:hover { background-color: #F3F4F6; }
+        .amount { text-align: right; font-weight: bold; }
+        .amount.negative { color: #DC2626; }
+
+    </style>
+</head>
+<body>
+
+    <h1>Análisis de Gastos Familiares</h1>
+    <p class="subtitle">Haz clic en "Cargar Datos" para iniciar el análisis interactivo</p>
+
+    <div class="upload-container" id="upload-zone" onclick="loadDashboard()">
+        <svg style="width:50px; height:50px; color:#9CA3AF; margin-bottom:10px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+        <p><strong>Haz clic aquí para cargar el extracto bancario</strong></p>
+    </div>
+
+    <div id="dashboard-content">
+        <h2 style="text-align: center; margin-bottom: 20px; color: var(--text-muted);">Elige una familia de gastos para ver el detalle</h2>
+        
+        <div class="summary-cards">
+            <div class="card" id="card-casa" onclick="showDetails('casa')">
+                <h3>🏠 Gastos de Casa</h3>
+                <p>11.166,73 €</p>
+                <span class="click-hint">Clic para ver desglose</span>
+            </div>
+            <div class="card" id="card-colegio" onclick="showDetails('colegio')">
+                <h3>🎒 Colegio y Extraescolares</h3>
+                <p>456,85 €</p>
+                <span class="click-hint">Clic para ver desglose</span>
+            </div>
+            <div class="card" id="card-restaurante" onclick="showDetails('restaurante')">
+                <h3>🍽️ Restaurantes</h3>
+                <p>14,28 €</p>
+                <span class="click-hint">Clic para ver desglose</span>
+            </div>
+        </div>
+
+        <div class="details-section" id="details-section">
+            <div class="details-header">
+                <h2 id="table-title">Detalle de Gastos</h2>
+                <button class="btn btn-pdf" onclick="exportToPDF()">Descargar PDF</button>
+            </div>
+            <table id="expenses-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Descripción</th>
+                        <th style="text-align: right;">Importe (€)</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Base de datos extraída de tu PDF
+        const expensesData = {
+            'restaurante': [
+                { date: '28/03/2026', desc: 'COMPRA COMERCIO TJ-ITALIANISSIMO', amount: -14.28 }
+            ],
+            'colegio': [
+                { date: '11/03/2026', desc: 'RCBO.COMEDOR COLEG', amount: -87.00 },
+                { date: '12/03/2026', desc: 'RCBO.AFA CEIP', amount: -36.00 },
+                { date: '04/03/2026', desc: 'RCBO.ALVARO SEVERI', amount: -30.00 },
+                { date: '03/03/2026', desc: 'TRF.ASOC GRUPO', amount: -22.00 },
+                { date: '11/02/2026', desc: 'RCBO.COMEDOR COLEG', amount: -78.30 },
+                { date: '11/02/2026', desc: 'RCBO.AFA CEIP', amount: -36.00 },
+                { date: '08/02/2026', desc: 'TRF.ASOC GRUPO', amount: -15.00 },
+                { date: '03/02/2026', desc: 'RCBO ALVARO SEVERI', amount: -30.00 },
+                { date: '13/01/2026', desc: 'RCBO.AFA CEIP', amount: -36.00 },
+                { date: '12/01/2026', desc: 'RCBO.COMEDOR COLEG', amount: -56.55 },
+                { date: '07/01/2026', desc: 'RCBO.ALVARO SEVERI', amount: -30.00 }
+            ],
+            'casa': [
+                // Muestra representativa de los gastos de casa para no saturar la tabla
+                { date: '28/03/2026', desc: 'MERCADONA RIBA-ROJA', amount: -120.32 },
+                { date: '16/03/2026', desc: 'RCBO.GC RE OCTOPUS (Luz)', amount: -80.55 },
+                { date: '13/03/2026', desc: 'RCBO.VODAFONE', amount: -39.16 },
+                { date: '01/03/2026', desc: 'RCBO. PRÉSTAMO (Hipoteca)', amount: -795.62 },
+                { date: '24/02/2026', desc: 'MERCADONA ONLINE', amount: -93.50 },
+                { date: '12/02/2026', desc: 'RCBO.HIDRAQUA (Agua)', amount: -91.68 },
+                { date: '01/02/2026', desc: 'RCBO. PRÉSTAMO (Hipoteca)', amount: -795.62 },
+                { date: '26/01/2026', desc: 'RCBO.BASER COMER. (Gas)', amount: -143.42 },
+                { date: '14/01/2026', desc: 'RCBO.VODAFONE', amount: -38.30 },
+                { date: '01/01/2026', desc: 'RCBO. PRÉSTAMO (Hipoteca)', amount: -795.62 },
+                { date: '30/12/2025', desc: 'FAMILYCASH TORRENT', amount: -87.18 }
+            ]
+        };
+
+        let currentCategory = '';
+        let currentTitle = '';
+
+        function loadDashboard() {
+            document.getElementById('upload-zone').style.display = 'none';
+            document.getElementById('dashboard-content').style.display = 'block';
+        }
+
+        function showDetails(category) {
+            currentCategory = category;
+            
+            // Actualizar estilos de las tarjetas
+            document.querySelectorAll('.card').forEach(card => card.classList.remove('active'));
+            document.getElementById('card-' + category).classList.add('active');
+
+            // Configurar títulos
+            const titles = {
+                'casa': 'Detalle: 🏠 Gastos de Casa',
+                'colegio': 'Detalle: 🎒 Colegio y Extraescolares',
+                'restaurante': 'Detalle: 🍽️ Restaurantes'
+            };
+            currentTitle = titles[category];
+            document.getElementById('table-title').innerText = currentTitle;
+
+            // Limpiar y llenar la tabla
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+            
+            expensesData[category].forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${item.date}</td>
+                    <td>${item.desc}</td>
+                    <td class="amount negative">${item.amount.toFixed(2).replace('.', ',')} €</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // Mostrar la sección con animación
+            const detailsSection = document.getElementById('details-section');
+            detailsSection.style.display = 'none'; // reset para re-animar
+            setTimeout(() => { detailsSection.style.display = 'block'; }, 10);
+        }
+
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // Título del documento
+            doc.setFontSize(18);
+            doc.text(currentTitle, 14, 22);
+            doc.setFontSize(11);
+            doc.setTextColor(100);
+            doc.text('Generado automáticamente desde tu Dashboard Financiero', 14, 30);
+
+            // Preparar los datos para autoTable
+            const tableData = expensesData[currentCategory].map(item => [
+                item.date,
+                item.desc,
+                { content: item.amount.toFixed(2).replace('.', ',') + ' €', styles: { halign: 'right', textColor: [220, 38, 38] } }
+            ]);
+
+            // Generar tabla en PDF
+            doc.autoTable({
+                startY: 36,
+                head: [['Fecha', 'Descripción', 'Importe']],
+                body: tableData,
+                theme: 'striped',
+                headStyles: { fillColor: [79, 70, 229] } // Color morado primario
+            });
+
+            // Guardar el archivo
+            doc.save(`Gastos_${currentCategory}.pdf`);
+        }
+    </script>
+</body>
+</html>
